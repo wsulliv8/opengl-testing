@@ -14,7 +14,7 @@ find_package(glfw3 3.3 REQUIRED)
 find_package(OpenGL REQUIRED)
 
 # Define your executable
-add_executable(gl_window main.cpp glad.c)
+add_executable(gl_window main.cpp shader.cpp stb_image.cpp glad.c)
 
 target_include_directories(gl_window PRIVATE include)
 
