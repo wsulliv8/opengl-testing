@@ -12,6 +12,8 @@
 #include <learnopengl/shader.h>
 
 #include <iostream>
+#include <map>
+#include <vector>
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
@@ -72,22 +74,16 @@ int main() {
   // configure global opengl state
   // -----------------------------
   glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_LESS); // always pass the depth test (same effect as
-                        // glDisable(GL_DEPTH_TEST))
+  glDepthFunc(GL_LESS);
 
-  glEnable(GL_STENCIL_TEST);
-  glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-  glStencilFunc(GL_ALWAYS, 1, 0xFF);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
   // build and compile shaders
   // -------------------------
   Shader shader(
       FileSystem::getPath("src/depth_testing/1.1.depth_testing.vs").c_str(),
       FileSystem::getPath("src/depth_testing/1.1.depth_testing.fs").c_str());
-
-  Shader stencilShader(
-      FileSystem::getPath("src/depth_testing/1.1.depth_testing.vs").c_str(),
-      FileSystem::getPath("src/depth_testing/2.stencil.fs").c_str());
 
   // set up vertex data (and buffer(s)) and configure vertex attributes
   // ------------------------------------------------------------------
@@ -125,7 +121,22 @@ int main() {
 
       5.0f, -0.5f, 5.0f,  2.0f,  0.0f,  -5.0f, -0.5f, -5.0f,
       0.0f, 2.0f,  5.0f,  -0.5f, -5.0f, 2.0f,  2.0f};
-  // cube VAO
+  float windowVertices[] = {
+      // positions         // texture Coords (swapped y coordinates because
+      // texture is flipped upside down)
+      0.0f, 0.5f, 0.0f, 0.0f,  0.0f, 0.0f, -0.5f, 0.0f,
+      0.0f, 1.0f, 1.0f, -0.5f, 0.0f, 1.0f, 1.0f,
+
+      0.0f, 0.5f, 0.0f, 0.0f,  0.0f, 1.0f, -0.5f, 0.0f,
+      1.0f, 1.0f, 1.0f, 0.5f,  0.0f, 1.0f, 0.0f};
+
+  std::vector<glm::vec3> windows;
+  windows.push_back(glm::vec3(-1.5f, 0.0f, -0.48f));
+  windows.push_back(glm::vec3(1.5f, 0.0f, 0.51f));
+  windows.push_back(glm::vec3(0.0f, 0.0f, 0.7f));
+  windows.push_back(glm::vec3(-0.3f, 0.0f, -2.3f));
+
+  // window VAO
   unsigned int cubeVAO, cubeVBO;
   glGenVertexArrays(1, &cubeVAO);
   glGenBuffers(1, &cubeVBO);
@@ -154,12 +165,29 @@ int main() {
                         (void *)(3 * sizeof(float)));
   glBindVertexArray(0);
 
+  // window VAO (a single billboard quad, instanced via model matrix)
+  unsigned int windowVAO, windowVBO;
+  glGenVertexArrays(1, &windowVAO);
+  glGenBuffers(1, &windowVBO);
+  glBindVertexArray(windowVAO);
+  glBindBuffer(GL_ARRAY_BUFFER, windowVBO);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(windowVertices), windowVertices,
+               GL_STATIC_DRAW);
+  glEnableVertexAttribArray(0);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
+  glEnableVertexAttribArray(1);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float),
+                        (void *)(3 * sizeof(float)));
+  glBindVertexArray(0);
+
   // load textures
   // -------------
   unsigned int cubeTexture =
       loadTexture(FileSystem::getPath("resources/textures/marble.jpg").c_str());
   unsigned int floorTexture =
       loadTexture(FileSystem::getPath("resources/textures/metal.png").c_str());
+  unsigned int windowTexture =
+      loadTexture(FileSystem::getPath("resources/textures/window.png").c_str());
 
   // shader configuration
   // --------------------
@@ -182,68 +210,52 @@ int main() {
     // render
     // ------
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    stencilShader.use();
-    glm::mat4 model = glm::mat4(1.0f);
+    std::map<float, glm::vec3> sortedWindows;
+    for (const auto &pos : windows) {
+      float distance = glm::length(camera.Position - pos);
+      sortedWindows[distance] = pos;
+    }
+
+    shader.use();
     glm::mat4 view = camera.GetViewMatrix();
     glm::mat4 projection =
         glm::perspective(glm::radians(camera.Zoom),
                          (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-    stencilShader.setMat4("view", view);
-    stencilShader.setMat4("projection", projection);
-
-    shader.use();
     shader.setMat4("view", view);
     shader.setMat4("projection", projection);
 
-    glStencilMask(0x00);
     // floor
     glBindVertexArray(planeVAO);
     glBindTexture(GL_TEXTURE_2D, floorTexture);
     shader.setMat4("model", glm::mat4(1.0f));
     glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
 
-    glStencilMask(0xFF);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF);
     // cubes
     glBindVertexArray(cubeVAO);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, cubeTexture);
-    model = glm::translate(model, glm::vec3(-1.0f, 0.0f, -1.0f));
+    glm::mat4 model =
+        glm::translate(glm::mat4(1.0f), glm::vec3(-1.0f, 0.0f, -1.0f));
     shader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 36);
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.0f));
+    model = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 0.0f, 0.0f));
     shader.setMat4("model", model);
     glDrawArrays(GL_TRIANGLES, 0, 36);
     glBindVertexArray(0);
 
-    // Stencil second pass
-    glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
-    glStencilMask(0x00);
-    glDisable(GL_DEPTH_TEST);
-    stencilShader.use();
-    float scale = 1.1f;
-    // cubes
-    glBindVertexArray(cubeVAO);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, cubeTexture);
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(-1.0f, 0.0f, -1.0f));
-    model = glm::scale(model, glm::vec3(scale, scale, scale));
-    stencilShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
-    model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(2.0f, 0.0f, 0.0f));
-    model = glm::scale(model, glm::vec3(scale, scale, scale));
-    stencilShader.setMat4("model", model);
-    glDrawArrays(GL_TRIANGLES, 0, 36);
+    glBindVertexArray(windowVAO);
+    glBindTexture(GL_TEXTURE_2D, windowTexture);
+    for (std::map<float, glm::vec3>::reverse_iterator it =
+             sortedWindows.rbegin();
+         it != sortedWindows.rend(); ++it) {
+      model = glm::mat4(1.0f);
+      model = glm::translate(model, it->second);
+      shader.setMat4("model", model);
+      glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
     glBindVertexArray(0);
-    glEnable(GL_DEPTH_TEST);
-    glStencilMask(0xFF);
-    glStencilFunc(GL_ALWAYS, 1, 0xFF);
 
     // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved
     // etc.)
@@ -256,8 +268,10 @@ int main() {
   // ------------------------------------------------------------------------
   glDeleteVertexArrays(1, &cubeVAO);
   glDeleteVertexArrays(1, &planeVAO);
+  glDeleteVertexArrays(1, &windowVAO);
   glDeleteBuffers(1, &cubeVBO);
   glDeleteBuffers(1, &planeVBO);
+  glDeleteBuffers(1, &windowVBO);
 
   glfwTerminate();
   return 0;
@@ -339,8 +353,10 @@ unsigned int loadTexture(char const *path) {
                  GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,
+                    format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,
+                    format == GL_RGBA ? GL_CLAMP_TO_EDGE : GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER,
                     GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
