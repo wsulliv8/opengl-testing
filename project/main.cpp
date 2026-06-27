@@ -1,9 +1,13 @@
+#include "glm/ext/matrix_transform.hpp"
 #include <glad/glad.h>
 #define GLFW_INCLUDE_NONE
 #include "stb_image.h"
 #include <GLFW/glfw3.h>
 
 #include "shader.hpp"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 #include <iostream>
 
 float vertices[] = {
@@ -139,6 +143,18 @@ int main() {
   glBindVertexArray(0);
 
   // Vertices and Buffers End
+
+  // Transformation Start
+
+  glm::mat4 trans = glm::mat3(1.0f);
+  trans = glm::rotate(trans, glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  trans = glm::scale(trans, glm::vec3(0.5f, 0.5f, 0.5f));
+
+  shader.use();
+  glUniformMatrix4fv(glGetUniformLocation(shader.ID, "transform"), 1, GL_FALSE,
+                     glm::value_ptr(trans));
+
+  // Transformation End
 
   while (!glfwWindowShouldClose(window)) {
     processInput(window);

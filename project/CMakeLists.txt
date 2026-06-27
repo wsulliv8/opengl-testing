@@ -13,10 +13,13 @@ find_package(glfw3 3.3 REQUIRED)
 # 2. Locate the system's native OpenGL graphic drivers core
 find_package(OpenGL REQUIRED)
 
+# GLM (local copy at repo root)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../glm-1.0.3 ${CMAKE_BINARY_DIR}/glm)
+
 # Define your executable
 add_executable(gl_window main.cpp shader.cpp stb_image.cpp glad.c)
 
 target_include_directories(gl_window PRIVATE include)
 
 # 3. Link everything together cleanly
-target_link_libraries(gl_window PRIVATE glfw OpenGL::GL)
+target_link_libraries(gl_window PRIVATE glfw OpenGL::GL glm::glm)
