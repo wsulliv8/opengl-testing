@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 
 #include "shader.hpp"
+#include <learnopengl/filesystem.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -13,6 +14,7 @@
 void framebuffer_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void mouse_callback(GLFWwindow *window, double xpos, double ypos);
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset);
 
 float vertices[] = {
     -0.5f, -0.5f, -0.5f, 0.0f,  0.0f,  0.5f,  -0.5f, -0.5f, 1.0f,  0.0f,  0.5f,
@@ -46,6 +48,7 @@ bool firstMouse = true;
 
 float yaw = -90.0f;
 float pitch = 0.0f;
+float fov = 45.0f;
 
 int main() {
   glfwInit();
@@ -63,6 +66,7 @@ int main() {
   glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
   glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
   glfwSetCursorPosCallback(window, mouse_callback);
+  glfwSetScrollCallback(window, scroll_callback);
 
   if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
     std::cout << "Failed to initialize GLAD" << std::endl;
@@ -71,7 +75,8 @@ int main() {
 
   glViewport(0, 0, 800, 600);
 
-  Shader shader("shader.vert", "shader.frag");
+  Shader shader(FileSystem::getPath("src/start/shader.vert").c_str(),
+                FileSystem::getPath("src/start/shader.frag").c_str());
 
   glEnable(GL_DEPTH_TEST);
 
@@ -90,7 +95,8 @@ int main() {
 
   int width, height, nrChannels;
   unsigned char *data =
-      stbi_load("resources/container.jpg", &width, &height, &nrChannels, 0);
+      stbi_load(FileSystem::getPath("resources/container.jpg").c_str(), &width,
+                &height, &nrChannels, 0);
 
   if (data) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB,
@@ -111,7 +117,8 @@ int main() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
   data =
-      stbi_load("resources/awesomeface.png", &width, &height, &nrChannels, 0);
+      stbi_load(FileSystem::getPath("resources/awesomeface.png").c_str(), &width,
+                &height, &nrChannels, 0);
 
   if (data) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA,
@@ -184,7 +191,7 @@ int main() {
     view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
     projection =
-        glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+        glm::perspective(glm::radians(fov), 800.0f / 600.0f, 0.1f, 100.0f);
 
     glUniformMatrix4fv(glGetUniformLocation(shader.ID, "view"), 1, GL_FALSE,
                        glm::value_ptr(view));
@@ -239,6 +246,11 @@ void processInput(GLFWwindow *window) {
 }
 
 void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+  if (firstMouse) {
+    lastX = xpos;
+    lastY = ypos;
+    firstMouse = false;
+  }
   float offsetX = xpos - lastX;
   float offsetY = lastY - ypos;
   lastX = xpos;
@@ -263,4 +275,14 @@ void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
   direction.y = sin(glm::radians(pitch));
   direction.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
   cameraFront = glm::normalize(direction);
+}
+
+void scroll_callback(GLFWwindow *window, double xoffset, double yoffset) {
+  fov -= (float)yoffset;
+  if (fov < 1.0f) {
+    fov = 1.0f;
+  }
+  if (fov > 45.0f) {
+    fov = 45.0f;
+  }
 }

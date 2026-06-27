@@ -2,24 +2,47 @@ cmake_minimum_required(VERSION 3.15)
 project(LinuxOpenGLApp LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Target modern C++ (matches our roadmap)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# 1. Locate the installed GLFW3 package on your Linux system
 find_package(glfw3 3.3 REQUIRED)
-
-# 2. Locate the system's native OpenGL graphic drivers core
 find_package(OpenGL REQUIRED)
 
-# GLM (local copy at repo root)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../glm-1.0.3 ${CMAKE_BINARY_DIR}/glm)
 
-# Define your executable
-add_executable(gl_window main.cpp shader.cpp stb_image.cpp glad.c)
+# Asset paths resolve from the project root via learnopengl/filesystem.h
+set(LOGL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/root_directory.h.in
+    ${CMAKE_BINARY_DIR}/generated/root_directory.h
+)
 
-target_include_directories(gl_window PRIVATE include)
+set(COMMON_LIBS glfw OpenGL::GL glm::glm)
+set(COMMON_INCLUDES
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}/generated
+)
 
-# 3. Link everything together cleanly
-target_link_libraries(gl_window PRIVATE glfw OpenGL::GL glm::glm)
+# --- gl_window (src/start) ---
+add_executable(gl_window
+    src/start/main.cpp
+    src/start/shader.cpp
+    src/stb_image.cpp
+    src/glad.c
+)
+
+target_include_directories(gl_window PRIVATE
+    ${COMMON_INCLUDES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/start
+)
+target_link_libraries(gl_window PRIVATE ${COMMON_LIBS})
+
+# --- depth_testing (src/depth_testing) ---
+add_executable(depth_testing
+    src/depth_testing/depth_testing.cpp
+    src/stb_image.cpp
+    src/glad.c
+)
+
+target_include_directories(depth_testing PRIVATE ${COMMON_INCLUDES})
+target_link_libraries(depth_testing PRIVATE ${COMMON_LIBS})
